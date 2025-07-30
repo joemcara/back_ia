@@ -123,15 +123,13 @@ async def predict(files: list[UploadFile] = File(...)):
         except Exception as e:
             raise HTTPException(500, f"Error de inferencia para la imagen {file.filename}: {e}")
 
-        if preds.shape[-1] == 1:
-            p = float(preds[0][0])
-            label = CLASS_NAMES[p >= 0.75]
-            confidence = float(tf.sigmoid(p).numpy())
-        else:
-            label = CLASS_NAMES[class_idx]
-            confidence = float(probs[0][class_idx])
+        p = float(preds[0][0])
+        label = CLASS_NAMES[p >= 0.75]
+        confidence = float(tf.sigmoid(p).numpy())
         
-        # Agregar la predicción a la lista
+        if label == "Blanqueado":
+            confidence = 1 - confidence
+            print(f"Predicción: {probs}, Clase: {class_idx}")
         predictions.append({
             "filename": file.filename,
             "label": label,
