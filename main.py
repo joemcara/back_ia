@@ -106,23 +106,36 @@ def health():
     return {"status": "ok", "message": "API de corales funcionando"}
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
-    if not file.content_type.startswith("image/"):
-        raise HTTPException(400, "El archivo debe ser una imagen")
+async def predict(files: list[UploadFile] = File(...)):
+    predictions = []
+    
+    # Procesar cada archivo de imagen
+    for file in files:
+        if not file.content_type.startswith("image/"):
+            raise HTTPException(400, "El archivo debe ser una imagen")
 
-    img_bytes = await file.read()
-    try:
-        preds = model.predict(preprocess(img_bytes))
-        class_idx = np.argmax(preds, axis=1)[0]
-        probs  = tf.sigmoid(preds).numpy() 
-        print(f"Predicción: {probs}, Clase: {class_idx}")
+        img_bytes = await file.read()
+        try:
+            preds = model.predict(preprocess(img_bytes))
+            class_idx = np.argmax(preds, axis=1)[0]
+            probs  = tf.sigmoid(preds).numpy()
+            print(f"Predicción: {probs}, Clase: {class_idx}")
+        except Exception as e:
+            raise HTTPException(500, f"Error de inferencia para la imagen {file.filename}: {e}")
 
-    except Exception as e:
-        raise HTTPException(500, f"Error de inferencia: {e}")
-
-    if preds.shape[-1] == 1: 
-        p     = float(preds[0][0])
-        label = CLASS_NAMES[p >= 0.75]
+        if preds.shape[-1] == 1:
+            p = float(preds[0][0])
+            label = CLASS_NAMES[p >= 0.75]
+            confidence = float(tf.sigmoid(p).numpy())
+        else:
+            label = CLASS_NAMES[class_idx]
+            confidence = float(probs[0][class_idx])
         
+        # Agregar la predicción a la lista
+        predictions.append({
+            "filename": file.filename,
+            "label": label,
+            "confidence": confidence
+        })
 
-    return {"label": label, "confidence": float(tf.sigmoid(p).numpy()) }
+    return {"predictions": predictions}
